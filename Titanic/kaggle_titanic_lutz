@@ -1,0 +1,202 @@
+# This code is from the Titanic Competition on Kaggle. Spoiler: I got a score of 98.43
+
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+
+#import os
+#for dirname, _, filenames in os.walk('/kaggle/input'):
+ #   for filename in filenames:
+  #      print(os.path.join(dirname, filename))
+
+import matplotlib.pyplot as plt
+%matplotlib inline
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score, roc_curve
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, KBinsDiscretizer
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+import xgboost as xg
+
+import seaborn as sns
+sns.set(style="ticks")
+
+# Never forget: Import Data 
+train = pd.read_csv("train.csv")
+test = pd.read_csv("test.csv")
+gd = pd.read_csv("gender_submission.csv")
+both = [train, test]
+
+train.sample(10)
+
+# Missings?
+print('TRAIN data set columns with null values:\n', train.isnull().sum())
+print('TEST data set columns with null values:\n', test.isnull().sum())
+
+# Lots of nulls for Cabin. I guess this will not be included later, so no na removal. 
+# It would be a shame to lose age as explanatory variable. Lets impute the missings: 
+for df in both:
+    mean_age = round(df['Age'].mean(), 1)
+    print(mean_age)
+    df['Age'].replace(np.nan, mean_age, inplace=True)
+    df = df.drop(['Ticket', 'Cabin'], axis=1)
+
+train.describe()
+
+
+# Recoding to numeric: 
+for df in both:
+    df.loc[df["Sex"] == "male", "Sex"] = 0
+    df.loc[df["Sex"] == "female", "Sex"] = 1
+
+    df.loc[df["Embarked"] == "S", "Embarked"] = 0
+    df.loc[df["Embarked"] == "Q", "Embarked"] = 1
+    df.loc[df["Embarked"] == "C", "Embarked"] = 2
+
+#The factors of survival on the MS Titanic are rather well known. You are likely to survive, if you are 
+#* Female 
+#* A child 
+#* Not poor 
+#* Not the captain
+
+#However, browsing through the data set gives you hints about further explaining variables. Such as: 
+#* Harbour of embarkment (I assume this is correlated to the location of the room on the ship. Also might be a proxy for wealth? )
+#* Member of a family (Because families where allowed on rescue vessels as a whole)
+
+#On the wild side I guess that these could also look at these: 
+#* Room number (Because some rooms where closer to floor exits, or less affected by entering water. However, most of the rows are missing, so maybe we'll just leave this out)
+#* Length of name, as another proxy for wealth and an indicator of royal heritage, which might be an additional factor to wealth)   
+#* Titles should be an issue. 
+
+# Generate an identifier for children 
+for df in both: 
+    df['child'] = df['Age'].apply(lambda x: 'True' if x <= 17 else 'False')
+    df['child'].value_counts()
+
+# Combine Parents and children for familiy size
+    df["FamSize"] = df["SibSp"] + df["Parch"] + 1
+
+
+for df in both: 
+    for name in df["Name"]:
+            df["Title"] = df["Name"].str.extract("([A-Za-z]+)\.",expand=True)
+
+    othertitles = {"Mlle": "Other", "Major": "Other", "Col": "Other", "Sir": "Other", "Don": "Other", "Mme": "Other",
+                  "Jonkheer": "Other", "Lady": "Other", "Capt": "Other", "Countess": "Other", "Ms": "Other", "Dona": "Other", "Rev": "Other", "Dr": "Other"}    
+
+    df.replace({"Title": othertitles}, inplace=True)
+
+
+    df.loc[df["Title"] == "Miss", "Title"] = 0
+    df.loc[df["Title"] == "Mr", "Title"] = 1
+    df.loc[df["Title"] == "Mrs", "Title"] = 2
+    df.loc[df["Title"] == "Master", "Title"] = 3
+    df.loc[df["Title"] == "Other", "Title"] = 4
+    print(set(df["Title"]))
+    # No more use for name variable
+    df = df.drop(['Name'], axis=1)
+
+
+# Visual inspection is best inspection
+
+sns.catplot(x="child", y="Survived", kind="bar", data=train);
+
+sns.catplot(x="Sex", y="Survived", hue="Pclass", kind="bar", data=train);
+
+# Wealth
+sns.catplot(x="Pclass", y="Survived", kind = "bar", data=train);
+
+# Fare should be very precise. Quick look: 
+train['Survived'].groupby(pd.qcut(train['Fare'], 3)).mean()
+
+sns.pointplot(x="Title", y="Survived",  data=train);
+
+sns.catplot(x="Embarked", y="Survived", kind="bar", data=train);
+print(set(train["Embarked"]))
+
+sns.pointplot(x="FamSize", y="Survived" , data=train)
+
+
+### What did we learn? (mostly obvious) 
+#* Women have better chances of survival than men 
+#* Children are safer than grown-ups 
+#* Being rich definitely helps 
+#* Getting on the ship later increases your chance of survival. My assumption is that later boarding translates to cabins closer to exits. 
+#* If people approach you as "Mr" you can pretty much jump off the boat. 
+#* Single travelling passengers and families bigger than 4 have lower chance of survival. 
+
+
+### Predictions 
+train = train.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
+test = test.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
+
+from sklearn.linear_model import LogisticRegression
+
+X_train = train.drop(["Survived", "PassengerId"], axis=1)
+Y_train = train["Survived"]
+X_test  = test.drop("PassengerId", axis=1).copy()
+X_train.shape, Y_train.shape, X_test.shape
+
+
+logreg = LogisticRegression()
+logreg.fit(X_train, Y_train)
+Y_pred = logreg.predict(X_test)
+acc_log = round(logreg.score(X_train, Y_train) * 100, 2)
+acc_log
+
+coeff_df = pd.DataFrame(train.columns.delete(0))
+coeff_df.columns = ['Feature']
+coeff_df["Correlation"] = pd.Series(logreg.coef_[0])
+
+coeff_df.sort_values(by='Correlation', ascending=False)
+
+# Support Vector Machines
+
+svc = SVC()
+svc.fit(X_train, Y_train)
+Y_pred = svc.predict(X_test)
+acc_svc = round(svc.score(X_train, Y_train) * 100, 2)
+acc_svc
+
+# Gaussian Naive Bayes
+
+gaussian = GaussianNB()
+gaussian.fit(X_train, Y_train)
+Y_pred = gaussian.predict(X_test)
+acc_gaussian = round(gaussian.score(X_train, Y_train) * 100, 2)
+acc_gaussian
+
+
+# Decision Treea
+
+decision_tree = DecisionTreeClassifier()
+decision_tree.fit(X_train, Y_train)
+Y_pred = decision_tree.predict(X_test)
+acc_decision_tree = round(decision_tree.score(X_train, Y_train) * 100, 2)
+acc_decision_tree
+
+# Random Forest
+random_forest = RandomForestClassifier(n_estimators=100)
+random_forest.fit(X_train, Y_train)
+Y_pred = random_forest.predict(X_test)
+random_forest.score(X_train, Y_train)
+acc_random_forest = round(random_forest.score(X_train, Y_train) * 100, 2)
+acc_random_forest
+
+
+models = pd.DataFrame({
+    'Model': ['Support Vector Machines', 'Logistic Regression', 
+              'Random Forest', 'Naive Bayes',
+              'Decision Tree'],
+    'Score': [acc_svc,acc_log, 
+              acc_random_forest, acc_gaussian, acc_decision_tree]})
+models.sort_values(by='Score', ascending=False)
+
+
+submission = pd.DataFrame({
+        "PassengerId": test["PassengerId"],
+        "Survived": Y_pred
+    })
+submission.to_csv('titanic.csv', index=False)
