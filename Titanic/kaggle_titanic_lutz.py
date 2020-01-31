@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 %matplotlib inline
 
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import dfTrain_dfTest_split, GridSearchCV, RandomizedSearchCV
 from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score, roc_curve
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, KBinsDiscretizer
 from sklearn.tree import DecisionTreeClassifier
@@ -19,16 +19,16 @@ import seaborn as sns
 sns.set(style="ticks")
 
 # Never forget: Import Data 
-train = pd.read_csv("train.csv")
-test = pd.read_csv("test.csv")
+dfTrain = pd.read_csv("dfTrain.csv")
+dfTest = pd.read_csv("dfTest.csv")
 gd = pd.read_csv("gender_submission.csv")
-both = [train, test]
+both = [dfTrain, dfTest]
 
-train.sample(10)
+dfTrain.sample(10)
 
 # Missings?
-print('TRAIN data set columns with null values:\n', train.isnull().sum())
-print('TEST data set columns with null values:\n', test.isnull().sum())
+print('dfTrain data set columns with null values:\n', dfTrain.isnull().sum())
+print('dfTest data set columns with null values:\n', dfTest.isnull().sum())
 
 # Lots of nulls for Cabin. I guess this will not be included later, so no na removal. 
 # It would be a shame to lose age as explanatory variable. Lets impute the missings: 
@@ -38,7 +38,7 @@ for df in both:
     df['Age'].replace(np.nan, mean_age, inplace=True)
     df = df.drop(['Ticket', 'Cabin'], axis=1)
 
-train.describe()
+dfTrain.describe()
 
 
 # Recoding to numeric: 
@@ -96,22 +96,22 @@ for df in both:
 
 # Visual inspection is best inspection
 
-sns.catplot(x="child", y="Survived", kind="bar", data=train);
+sns.catplot(x="child", y="Survived", kind="bar", data=dfTrain);
 
-sns.catplot(x="Sex", y="Survived", hue="Pclass", kind="bar", data=train);
+sns.catplot(x="Sex", y="Survived", hue="Pclass", kind="bar", data=dfTrain);
 
 # Wealth
-sns.catplot(x="Pclass", y="Survived", kind = "bar", data=train);
+sns.catplot(x="Pclass", y="Survived", kind = "bar", data=dfTrain);
 
 # Fare should be very precise. Quick look: 
-train['Survived'].groupby(pd.qcut(train['Fare'], 3)).mean()
+dfTrain['Survived'].groupby(pd.qcut(dfTrain['Fare'], 3)).mean()
 
-sns.pointplot(x="Title", y="Survived",  data=train);
+sns.pointplot(x="Title", y="Survived",  data=dfTrain);
 
-sns.catplot(x="Embarked", y="Survived", kind="bar", data=train);
-print(set(train["Embarked"]))
+sns.catplot(x="Embarked", y="Survived", kind="bar", data=dfTrain);
+print(set(dfTrain["Embarked"]))
 
-sns.pointplot(x="FamSize", y="Survived" , data=train)
+sns.pointplot(x="FamSize", y="Survived" , data=dfTrain)
 
 
 ### What did we learn? (mostly obvious) 
@@ -124,24 +124,24 @@ sns.pointplot(x="FamSize", y="Survived" , data=train)
 
 
 ### Predictions 
-train = train.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
-test = test.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
+dfTrain = dfTrain.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
+dfTest = dfTest.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
 
 from sklearn.linear_model import LogisticRegression
 
-X_train = train.drop(["Survived", "PassengerId"], axis=1)
-Y_train = train["Survived"]
-X_test  = test.drop("PassengerId", axis=1).copy()
-X_train.shape, Y_train.shape, X_test.shape
+xTrain = dfTrain.drop(["Survived", "PassengerId"], axis=1)
+yTrain = dfTrain["Survived"]
+xTest  = dfTest.drop("PassengerId", axis=1).copy()
+xTrain.shape, yTrain.shape, xTest.shape
 
 
 logreg = LogisticRegression()
-logreg.fit(X_train, Y_train)
-Y_pred = logreg.predict(X_test)
-acc_log = round(logreg.score(X_train, Y_train) * 100, 2)
+logreg.fit(xTrain, yTrain)
+Y_pred = logreg.predict(xTest)
+acc_log = round(logreg.score(xTrain, yTrain) * 100, 2)
 acc_log
 
-coeff_df = pd.DataFrame(train.columns.delete(0))
+coeff_df = pd.DataFrame(dfTrain.columns.delete(0))
 coeff_df.columns = ['Feature']
 coeff_df["Correlation"] = pd.Series(logreg.coef_[0])
 
@@ -150,34 +150,34 @@ coeff_df.sort_values(by='Correlation', ascending=False)
 # Support Vector Machines
 
 svc = SVC()
-svc.fit(X_train, Y_train)
-Y_pred = svc.predict(X_test)
-acc_svc = round(svc.score(X_train, Y_train) * 100, 2)
+svc.fit(xTrain, yTrain)
+Y_pred = svc.predict(xTest)
+acc_svc = round(svc.score(xTrain, yTrain) * 100, 2)
 acc_svc
 
 # Gaussian Naive Bayes
 
 gaussian = GaussianNB()
-gaussian.fit(X_train, Y_train)
-Y_pred = gaussian.predict(X_test)
-acc_gaussian = round(gaussian.score(X_train, Y_train) * 100, 2)
+gaussian.fit(xTrain, yTrain)
+Y_pred = gaussian.predict(xTest)
+acc_gaussian = round(gaussian.score(xTrain, yTrain) * 100, 2)
 acc_gaussian
 
 
 # Decision Treea
 
 decision_tree = DecisionTreeClassifier()
-decision_tree.fit(X_train, Y_train)
-Y_pred = decision_tree.predict(X_test)
-acc_decision_tree = round(decision_tree.score(X_train, Y_train) * 100, 2)
+decision_tree.fit(xTrain, yTrain)
+Y_pred = decision_tree.predict(xTest)
+acc_decision_tree = round(decision_tree.score(xTrain, yTrain) * 100, 2)
 acc_decision_tree
 
 # Random Forest
 random_forest = RandomForestClassifier(n_estimators=100)
-random_forest.fit(X_train, Y_train)
-Y_pred = random_forest.predict(X_test)
-random_forest.score(X_train, Y_train)
-acc_random_forest = round(random_forest.score(X_train, Y_train) * 100, 2)
+random_forest.fit(xTrain, yTrain)
+Y_pred = random_forest.predict(xTest)
+random_forest.score(xTrain, yTrain)
+acc_random_forest = round(random_forest.score(xTrain, yTrain) * 100, 2)
 acc_random_forest
 
 
@@ -191,7 +191,7 @@ models.sort_values(by='Score', ascending=False)
 
 
 submission = pd.DataFrame({
-        "PassengerId": test["PassengerId"],
+        "PassengerId": dfTest["PassengerId"],
         "Survived": Y_pred
     })
 
