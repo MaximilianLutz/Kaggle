@@ -18,7 +18,7 @@ import xgboost as xg
 import seaborn as sns
 sns.set(style="ticks")
 
-# Never forget: Import Data 
+# Never forget: Import Data
 dfTrain = pd.read_csv("dfTrain.csv")
 dfTest = pd.read_csv("dfTest.csv")
 gd = pd.read_csv("gender_submission.csv")
@@ -30,8 +30,8 @@ dfTrain.sample(10)
 print('dfTrain data set columns with null values:\n', dfTrain.isnull().sum())
 print('dfTest data set columns with null values:\n', dfTest.isnull().sum())
 
-# Lots of nulls for Cabin. I guess this will not be included later, so no na removal. 
-# It would be a shame to lose age as explanatory variable. Lets impute the missings: 
+# Lots of nulls for Cabin. I guess this will not be included later, so no na removal.
+# It would be a shame to lose age as explanatory variable. Lets impute the missings:
 for df in both:
     mean_age = round(df['Age'].mean(), 1)
     print(mean_age)
@@ -41,7 +41,7 @@ for df in both:
 dfTrain.describe()
 
 
-# Recoding to numeric: 
+# Recoding to numeric:
 for df in both:
     df.loc[df["Sex"] == "male", "Sex"] = 0
     df.loc[df["Sex"] == "female", "Sex"] = 1
@@ -50,23 +50,23 @@ for df in both:
     df.loc[df["Embarked"] == "Q", "Embarked"] = 1
     df.loc[df["Embarked"] == "C", "Embarked"] = 2
 
-#The factors of survival on the MS Titanic are rather well known. You are likely to survive, if you are 
-#* Female 
-#* A child 
-#* Not poor 
+#The factors of survival on the MS Titanic are rather well known. You are likely to survive, if you are
+#* Female
+#* A child
+#* Not poor
 #* Not the captain
 
-#However, browsing through the data set gives you hints about further explaining variables. Such as: 
+#However, browsing through the data set gives you hints about further explaining variables. Such as:
 #* Harbour of embarkment (I assume this is correlated to the location of the room on the ship. Also might be a proxy for wealth? )
 #* Member of a family (Because families where allowed on rescue vessels as a whole)
 
-#On the wild side I guess that these could also look at these: 
+#On the wild side I guess that these could also look at these:
 #* Room number (Because some rooms where closer to floor exits, or less affected by entering water. However, most of the rows are missing, so maybe we'll just leave this out)
-#* Length of name, as another proxy for wealth and an indicator of royal heritage, which might be an additional factor to wealth)   
-#* Titles should be an issue. 
+#* Length of name, as another proxy for wealth and an indicator of royal heritage, which might be an additional factor to wealth)
+#* Titles should be an issue.
 
-# Generate an identifier for children 
-for df in both: 
+# Generate an identifier for children
+for df in both:
     df['child'] = df['Age'].apply(lambda x: 'True' if x <= 17 else 'False')
     df['child'].value_counts()
 
@@ -74,12 +74,12 @@ for df in both:
     df["FamSize"] = df["SibSp"] + df["Parch"] + 1
 
 
-for df in both: 
+for df in both:
     for name in df["Name"]:
             df["Title"] = df["Name"].str.extract("([A-Za-z]+)\.",expand=True)
 
     othertitles = {"Mlle": "Other", "Major": "Other", "Col": "Other", "Sir": "Other", "Don": "Other", "Mme": "Other",
-                  "Jonkheer": "Other", "Lady": "Other", "Capt": "Other", "Countess": "Other", "Ms": "Other", "Dona": "Other", "Rev": "Other", "Dr": "Other"}    
+                  "Jonkheer": "Other", "Lady": "Other", "Capt": "Other", "Countess": "Other", "Ms": "Other", "Dona": "Other", "Rev": "Other", "Dr": "Other"}
 
     df.replace({"Title": othertitles}, inplace=True)
 
@@ -103,7 +103,7 @@ sns.catplot(x="Sex", y="Survived", hue="Pclass", kind="bar", data=dfTrain);
 # Wealth
 sns.catplot(x="Pclass", y="Survived", kind = "bar", data=dfTrain);
 
-# Fare should be very precise. Quick look: 
+# Fare should be very precise. Quick look:
 dfTrain['Survived'].groupby(pd.qcut(dfTrain['Fare'], 3)).mean()
 
 sns.pointplot(x="Title", y="Survived",  data=dfTrain);
@@ -114,16 +114,16 @@ print(set(dfTrain["Embarked"]))
 sns.pointplot(x="FamSize", y="Survived" , data=dfTrain)
 
 
-### What did we learn? (mostly obvious) 
-#* Women have better chances of survival than men 
-#* Children are safer than grown-ups 
-#* Being rich definitely helps 
-#* Getting on the ship later increases your chance of survival. My assumption is that later boarding translates to cabins closer to exits. 
-#* If people approach you as "Mr" you can pretty much jump off the boat. 
-#* Single travelling passengers and families bigger than 4 have lower chance of survival. 
+### What did we learn? (mostly obvious)
+#* Women have better chances of survival than men
+#* Children are safer than grown-ups
+#* Being rich definitely helps
+#* Getting on the ship later increases your chance of survival. My assumption is that later boarding translates to cabins closer to exits.
+#* If people approach you as "Mr" you can pretty much jump off the boat.
+#* Single travelling passengers and families bigger than 4 have lower chance of survival.
 
 
-### Predictions 
+### Predictions
 dfTrain = dfTrain.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
 dfTest = dfTest.drop(["Name", "Cabin", "Ticket", "Embarked", "child"], axis=1)
 
@@ -182,10 +182,10 @@ acc_random_forest
 
 
 models = pd.DataFrame({
-    'Model': ['Support Vector Machines', 'Logistic Regression', 
+    'Model': ['Support Vector Machines', 'Logistic Regression',
               'Random Forest', 'Naive Bayes',
               'Decision Tree'],
-    'Score': [acc_svc,acc_log, 
+    'Score': [acc_svc,acc_log,
               acc_random_forest, acc_gaussian, acc_decision_tree]})
 models.sort_values(by='Score', ascending=False)
 
@@ -197,3 +197,5 @@ submission = pd.DataFrame({
 
 # Irrelevant but for completeness:
 #submission.to_csv('titanic.csv', index=False)
+# TODO: I didn't yet tune hyperparameters, since the models are more than okay
+# as they are.
